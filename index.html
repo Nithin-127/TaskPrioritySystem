@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task Priority System</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #f0f2f5; margin: 0; }
+  .header { background: #1f4e79; color: white; padding: 14px; text-align: center; }
+  h1 { font-size: 24px; margin: 0; }
+  .container { max-width: 700px; margin: 20px auto; padding: 16px; background: white; border: 1px solid #ccc; }
+  h3 { color: #1f4e79; margin-top: 0; }
+  input { padding: 5px; margin: 3px 0; border: 1px solid #999; }
+  button { padding: 7px 16px; margin-top: 8px; cursor: pointer; background: #2e75b6; color: white; border: none; }
+  button:hover { background: #1f4e79; }
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+  th, td { border: 1px solid #999; padding: 6px; text-align: left; }
+  th { background: #2e75b6; color: white; }
+  tr:nth-child(even) td { background: #f5f8fc; }
+  .task { border: 1px solid #aaa; background: #f9fafc; padding: 8px; margin: 8px 0; }
+  .error { color: #c00000; }
+  .hidden { display: none; }
+  .High { color: #c00000; font-weight: bold; }
+  .Medium { color: #c55a11; font-weight: bold; }
+  .Low { color: #2e7d32; font-weight: bold; }
+  #focus { background: #e2efda; border: 1px solid #a9d08e; padding: 8px; font-weight: bold; }
+  .table-wrap { overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<div class="header"><h1>Task Priority System</h1></div>
+
+<div class="container">
+
+<div id="step1">
+  <h3>Step 1: Number of tasks</h3>
+  <input type="number" id="count" min="1" max="20" placeholder="How many tasks?">
+  <button onclick="createForms()">Next</button>
+  <p class="error" id="error1"></p>
+</div>
+
+<div id="step2" class="hidden">
+  <h3>Step 2: Enter task details</h3>
+  <div id="forms"></div>
+  <button onclick="submitTasks()">Submit</button>
+  <button onclick="location.reload()">Reset</button>
+  <p class="error" id="error2"></p>
+</div>
+
+<div id="resultBox" class="hidden">
+  <h3>Priority List</h3>
+  <p id="focus"></p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Rank</th><th>Task</th><th>Days Left</th><th>Marks</th><th>Score</th><th>Priority</th></tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<script>
+  function createForms() {
+    var n = Number(document.getElementById("count").value);
+    if (!Number.isInteger(n) || n < 1 || n > 20) {
+      document.getElementById("error1").textContent = "Enter a whole number from 1 to 20.";
+      return;
+    }
+    document.getElementById("error1").textContent = "";
+    var html = "";
+    for (var i = 1; i <= n; i++) {
+      html += '<div class="task"><b>Task ' + i + '</b><br>' +
+        'Name: <input type="text" class="t-name"> ' +
+        'Days left: <input type="number" class="t-days" min="0" style="width:70px"> ' +
+        'Marks: <input type="number" class="t-marks" min="1" style="width:70px">' +
+        '</div>';
+    }
+    document.getElementById("forms").innerHTML = html;
+    document.getElementById("step2").classList.remove("hidden");
+    document.getElementById("resultBox").classList.add("hidden");
+  }
+
+  function submitTasks() {
+    var boxes = document.getElementsByClassName("task");
+    var tasks = [];
+    for (var i = 0; i < boxes.length; i++) {
+      var name = boxes[i].querySelector(".t-name").value.trim();
+      var days = boxes[i].querySelector(".t-days").value;
+      var marks = boxes[i].querySelector(".t-marks").value;
+      if (name === "" || days === "" || marks === "" ||
+          !Number.isInteger(Number(days)) || Number(days) < 0 ||
+          !Number.isInteger(Number(marks)) || Number(marks) < 1) {
+        document.getElementById("error2").textContent =
+          "Task " + (i + 1) + ": enter a name, days left (0 or more) and marks (1 or more).";
+        return;
+      }
+      tasks.push({ name: name, days: Number(days), marks: Number(marks) });
+    }
+    document.getElementById("error2").textContent = "";
+
+    fetch("/api/priority", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tasks: tasks })
+    })
+    .then(function (res) { return res.json().then(function (d) { return { ok: res.ok, data: d }; }); })
+    .then(function (r) {
+      if (!r.ok) { document.getElementById("error2").textContent = r.data.error; return; }
+      showResult(r.data);
+    })
+    .catch(function () {
+      document.getElementById("error2").textContent = "Cannot connect to the Python server. Run app.py first.";
+    });
+  }
+
+  function showResult(d) {
+    document.getElementById("focus").textContent = "Focus first on: " + d.focus_first;
+    document.getElementById("tbody").innerHTML = "";
+    for (var i = 0; i < d.ranked.length; i++) {
+      var r = d.ranked[i];
+      var tr = document.createElement("tr");
+      var cells = [r.rank, r.name, r.days, r.marks, r.score, r.level];
+      for (var j = 0; j < cells.length; j++) {
+        var td = document.createElement("td");
+        td.textContent = cells[j];
+        if (j === 5) td.className = r.level;
+        tr.appendChild(td);
+      }
+      document.getElementById("tbody").appendChild(tr);
+    }
+    document.getElementById("resultBox").classList.remove("hidden");
+  }
+</script>
+</body>
+</html>
